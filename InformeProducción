@@ -1,1 +1,1934 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>LadrApp — Sistema de Turnos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:      #0d0f13;
+  --bg2:     #161920;
+  --bg3:     #1e2229;
+  --bg4:     #272c36;
+  --accent:  #e05a1a;
+  --accent2: #f5a623;
+  --text:    #e8e5df;
+  --text2:   #9a9890;
+  --text3:   #5a5855;
+  --ok:      #4ade80;
+  --warn:    #fb923c;
+  --err:     #f87171;
+  --border:  rgba(255,255,255,0.07);
+  --r:       10px;
+  --shadow:  0 8px 32px rgba(0,0,0,0.5);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;font-size:15px;overflow:hidden;}
 
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px;}
+
+/* ── TYPOGRAPHY ── */
+h1,h2,h3,.label{font-family:'Barlow Condensed',sans-serif;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+.toast-item{padding:12px 20px;border-radius:var(--r);font-size:14px;font-weight:500;animation:slideIn .25s ease;max-width:320px;}
+.toast-ok{background:#15391f;border:1px solid #4ade80;color:#4ade80;}
+.toast-err{background:#3b1414;border:1px solid #f87171;color:#f87171;}
+.toast-info{background:#1a2a3b;border:1px solid #60a5fa;color:#60a5fa;}
+@keyframes slideIn{from{transform:translateX(50px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;background:rgba(13,15,19,.85);backdrop-filter:blur(4px);z-index:9000;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+#loading.show{display:flex;}
+.spinner{width:44px;height:44px;border:3px solid var(--bg4);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── APP CONTAINER ── */
+#app{height:100vh;display:flex;flex-direction:column;}
+
+/* ── SCREEN SYSTEM ── */
+.screen{display:none;flex:1;overflow:hidden;}
+.screen.active{display:flex;}
+
+/* ── LOGIN ── */
+#screen-login{align-items:center;justify-content:center;background:var(--bg);position:relative;overflow:hidden;}
+#screen-login::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(224,90,26,.15) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(245,166,35,.08) 0%,transparent 50%);pointer-events:none;}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:48px;width:100%;max-width:420px;box-shadow:var(--shadow);position:relative;z-index:1;}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:40px;}
+.login-logo .brick{width:42px;height:42px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.login-logo h1{font-size:2rem;font-weight:800;letter-spacing:-0.5px;line-height:1;}
+.login-logo h1 span{color:var(--accent);}
+.login-logo p{font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace;margin-top:2px;}
+
+/* ── SETUP ── */
+#screen-setup{align-items:center;justify-content:center;background:var(--bg);}
+.setup-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:560px;box-shadow:var(--shadow);}
+.setup-step{margin-bottom:24px;padding:20px;background:var(--bg3);border-radius:var(--r);border-left:3px solid var(--accent);}
+.setup-step h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;}
+.setup-step p{font-size:13px;color:var(--text2);line-height:1.6;}
+.setup-step code{font-family:'IBM Plex Mono',monospace;font-size:12px;background:var(--bg4);padding:2px 6px;border-radius:4px;color:var(--accent2);}
+
+/* ── MAIN APP ── */
+#screen-app{flex-direction:row;}
+
+/* ── SIDEBAR ── */
+#sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sidebar-header{padding:20px 16px 12px;border-bottom:1px solid var(--border);}
+.sidebar-logo{display:flex;align-items:center;gap:10px;}
+.sidebar-logo .brick{width:32px;height:32px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.sidebar-logo h1{font-size:1.4rem;font-weight:800;letter-spacing:-0.3px;}
+.sidebar-logo h1 span{color:var(--accent);}
+.sidebar-user{padding:12px 16px;border-bottom:1px solid var(--border);}
+.sidebar-user-name{font-weight:600;font-size:14px;}
+.sidebar-user-role{font-size:11px;color:var(--text2);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;margin-top:2px;}
+.badge-role{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;font-family:'IBM Plex Mono',monospace;}
+.role-admin{background:rgba(245,166,35,.2);color:var(--accent2);}
+.role-supervisor{background:rgba(224,90,26,.2);color:var(--accent);}
+.role-operario{background:rgba(74,222,128,.15);color:var(--ok);}
+.role-gerencia{background:rgba(96,165,250,.15);color:#60a5fa;}
+nav{flex:1;overflow-y:auto;padding:12px 8px;}
+.nav-section{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;padding:8px 8px 4px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;color:var(--text2);transition:all .15s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left;}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:rgba(224,90,26,.15);color:var(--accent);border-right:2px solid var(--accent);}
+.nav-item .icon{font-size:18px;width:20px;text-align:center;}
+.sidebar-footer{padding:12px 16px;border-top:1px solid var(--border);}
+.shift-badge{background:var(--bg3);border-radius:8px;padding:10px 12px;border:1px solid var(--border);}
+.shift-badge .shift-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-family:'IBM Plex Mono',monospace;}
+.shift-badge .shift-value{font-size:1.1rem;font-weight:700;font-family:'Barlow Condensed',sans-serif;margin-top:2px;}
+.shift-badge .shift-time{font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace;}
+
+/* ── CONTENT ── */
+#content{flex:1;overflow-y:auto;background:var(--bg);}
+.panel{display:none;padding:28px;min-height:100%;}
+.panel.active{display:block;}
+
+/* ── PANEL HEADER ── */
+.panel-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;gap:16px;flex-wrap:wrap;}
+.panel-title{font-size:2rem;font-weight:800;font-family:'Barlow Condensed',sans-serif;line-height:1;}
+.panel-subtitle{font-size:13px;color:var(--text2);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:20px;}
+.card-sm{padding:16px;}
+.card-accent{border-color:rgba(224,90,26,.4);}
+.grid{display:grid;gap:16px;}
+.grid-2{grid-template-columns:repeat(2,1fr);}
+.grid-3{grid-template-columns:repeat(3,1fr);}
+.grid-4{grid-template-columns:repeat(4,1fr);}
+
+/* ── STAT CARDS ── */
+.stat-label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;font-family:'IBM Plex Mono',monospace;}
+.stat-value{font-size:2.4rem;font-weight:800;font-family:'Barlow Condensed',sans-serif;line-height:1.1;margin:6px 0 4px;}
+.stat-sub{font-size:12px;color:var(--text2);}
+.stat-accent{color:var(--accent);}
+.stat-ok{color:var(--ok);}
+.stat-warn{color:var(--warn);}
+
+/* ── FORM WIZARD ── */
+.form-wizard{max-width:780px;}
+.wizard-progress{display:flex;align-items:center;gap:0;margin-bottom:32px;overflow:hidden;border-radius:var(--r);background:var(--bg3);padding:0;}
+.wizard-step{flex:1;padding:10px 4px;text-align:center;font-size:11px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);transition:all .2s;cursor:default;}
+.wizard-step.done{color:var(--ok);background:rgba(74,222,128,.08);}
+.wizard-step.current{color:var(--accent);background:rgba(224,90,26,.12);}
+.wizard-step .step-num{display:block;font-size:16px;font-weight:800;}
+.wizard-step .step-name{display:block;font-size:9px;margin-top:1px;}
+.step-body{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:28px;}
+.step-title{font-size:1.5rem;font-weight:800;font-family:'Barlow Condensed',sans-serif;margin-bottom:6px;}
+.step-desc{font-size:13px;color:var(--text2);margin-bottom:24px;}
+.step-nav{display:flex;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid var(--border);}
+.step-nav .spacer{flex:1;}
+
+/* ── FORM ELEMENTS ── */
+.form-row{margin-bottom:18px;}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+label.field-label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);margin-bottom:6px;font-family:'IBM Plex Mono',monospace;}
+label.field-label .req{color:var(--accent);}
+input[type=text],input[type=number],input[type=date],input[type=time],
+select,textarea{
+  width:100%;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;
+  padding:10px 14px;color:var(--text);font-family:'Barlow',sans-serif;font-size:14px;
+  outline:none;transition:border-color .15s,box-shadow .15s;appearance:none;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(224,90,26,.15);}
+input::placeholder,textarea::placeholder{color:var(--text3);}
+select option{background:var(--bg3);}
+textarea{resize:vertical;min-height:80px;line-height:1.5;}
+input[type=number]{font-family:'IBM Plex Mono',monospace;}
+.input-calc{position:relative;}
+.input-calc .calc-badge{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;pointer-events:none;}
+.calc-result{background:var(--bg4);border-radius:8px;padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent2);border:1px solid var(--bg4);}
+.field-hint{font-size:11px;color:var(--text3);margin-top:4px;}
+
+/* ── CHECKBOXES & RADIOS ── */
+.check-group,.radio-group{display:flex;flex-wrap:wrap;gap:8px;}
+.check-item,.radio-item{position:relative;}
+.check-item input,.radio-item input{position:absolute;opacity:0;width:0;height:0;}
+.check-item label,.radio-item label{display:block;padding:7px 14px;background:var(--bg3);border:1px solid var(--bg4);border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.check-item input:checked + label,.radio-item input:checked + label{background:rgba(224,90,26,.2);border-color:var(--accent);color:var(--accent);}
+.check-item label:hover,.radio-item label:hover{border-color:var(--text3);}
+
+/* ── MULTI SELECT SEARCH ── */
+.multi-search{position:relative;}
+.multi-search-input{margin-bottom:8px;}
+.multi-list{max-height:200px;overflow-y:auto;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;}
+.multi-list-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;transition:background .1s;font-size:13px;}
+.multi-list-item:hover{background:var(--bg4);}
+.multi-list-item.selected{background:rgba(224,90,26,.12);}
+.multi-list-item input{width:14px;height:14px;accent-color:var(--accent);cursor:pointer;}
+.multi-selected-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:32px;}
+.tag{display:inline-flex;align-items:center;gap:6px;background:rgba(224,90,26,.15);border:1px solid rgba(224,90,26,.3);border-radius:20px;padding:3px 10px 3px 12px;font-size:12px;color:var(--accent);}
+.tag-rm{cursor:pointer;color:var(--text3);font-size:14px;line-height:1;}
+.tag-rm:hover{color:var(--err);}
+
+/* ── SECTION DIVIDERS ── */
+.section-divider{display:flex;align-items:center;gap:12px;margin:24px 0 16px;}
+.section-divider h3{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;white-space:nowrap;}
+.section-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.section-icon{width:28px;height:28px;background:rgba(224,90,26,.15);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+
+/* ── CONDITIONAL BLOCK ── */
+.cond-block{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-top:12px;display:none;}
+.cond-block.show{display:block;}
+.add-more-btn{display:flex;align-items:center;gap:8px;padding:8px 16px;background:transparent;border:1px dashed var(--bg4);border-radius:8px;color:var(--text2);cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;width:100%;justify-content:center;}
+.add-more-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;border:none;outline:none;font-family:'Barlow',sans-serif;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#c74d14;transform:translateY(-1px);}
+.btn-secondary{background:var(--bg3);border:1px solid var(--bg4);color:var(--text);}
+.btn-secondary:hover{background:var(--bg4);}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text2);}
+.btn-ghost:hover{background:var(--bg3);color:var(--text);}
+.btn-ok{background:#15391f;border:1px solid var(--ok);color:var(--ok);}
+.btn-ok:hover{background:#1d4a29;}
+.btn-danger{background:#3b1414;border:1px solid var(--err);color:var(--err);}
+.btn-lg{padding:14px 28px;font-size:16px;}
+.btn-sm{padding:7px 14px;font-size:12px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important;}
+
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{background:var(--bg3);padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);font-family:'IBM Plex Mono',monospace;white-space:nowrap;border-bottom:1px solid var(--border);}
+td{padding:11px 14px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;}
+.badge-t1{background:rgba(96,165,250,.15);color:#60a5fa;}
+.badge-t2{background:rgba(245,166,35,.15);color:var(--accent2);}
+.badge-t3{background:rgba(224,90,26,.15);color:var(--accent);}
+.empty-state{text-align:center;padding:48px;color:var(--text3);}
+.empty-state .empty-icon{font-size:48px;margin-bottom:12px;}
+.empty-state p{font-size:14px;}
+
+/* ── CHARTS ── */
+.chart-wrap{position:relative;height:220px;}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:8000;display:none;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:var(--shadow);max-height:90vh;overflow-y:auto;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.modal-title{font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:700;}
+.modal-close{background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px;line-height:1;}
+.modal-close:hover{color:var(--text);}
+
+/* ── ADMIN TABLE ACTIONS ── */
+.table-actions{display:flex;gap:6px;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  #sidebar{position:fixed;left:-220px;top:0;bottom:0;z-index:500;transition:left .25s;box-shadow:4px 0 24px rgba(0,0,0,.5);}
+  #sidebar.open{left:0;}
+  #content{overflow-y:auto;}
+  .panel{padding:16px;}
+  .grid-4{grid-template-columns:1fr 1fr;}
+  .grid-3{grid-template-columns:1fr 1fr;}
+  .form-row-2,.form-row-3{grid-template-columns:1fr;}
+  #mobile-bar{display:flex!important;}
+}
+#mobile-bar{display:none;align-items:center;gap:12px;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+#mobile-bar .hamburger{background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:4px;}
+#mobile-bar .mob-title{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;}
+#mobile-bar .mob-title span{color:var(--accent);}
+.sidebar-overlay{display:none;position:fixed;inset:0;z-index:499;}
+.sidebar-overlay.show{display:block;}
+
+/* ── TURNO INDICATOR ── */
+.turno-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;}
+.turno-T1{background:rgba(96,165,250,.15);color:#60a5fa;}
+.turno-T2{background:rgba(245,166,35,.15);color:var(--accent2);}
+.turno-T3{background:rgba(224,90,26,.15);color:var(--accent);}
+
+/* ── ALERT ── */
+.alert{padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px;line-height:1.5;}
+.alert-info{background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);color:#93c5fd;}
+.alert-warn{background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.3);color:#fdba74;}
+.alert-ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);color:#86efac;}
+
+/* ── REVIEW CARD ── */
+.review-section{background:var(--bg3);border-radius:var(--r);padding:16px;margin-bottom:12px;}
+.review-section h4{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;color:var(--accent2);margin-bottom:10px;}
+.review-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border);}
+.review-row:last-child{border-bottom:none;}
+.review-row .rv{font-weight:600;}
+.review-row .rk{color:var(--text2);}
+
+/* ── DRAFT INDICATOR ── */
+.draft-indicator{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--warn);font-family:'IBM Plex Mono',monospace;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+
+/* ── SECTION TABS ── */
+.sec-tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg3);padding:4px;border-radius:8px;flex-wrap:wrap;}
+.sec-tab{padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;color:var(--text2);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.3px;transition:all .15s;border:none;background:none;}
+.sec-tab.active{background:var(--bg2);color:var(--text);}
+.sec-tab-content{display:none;}
+.sec-tab-content.active{display:block;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- LOADING -->
+<div id="loading"><div class="spinner"></div><span style="color:var(--text2);font-size:13px;font-family:'IBM Plex Mono',monospace;">Procesando...</span></div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="screen-login" class="screen active">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="brick">🧱</div>
+      <div>
+        <h1>Ladr<span>App</span></h1>
+        <p>v1.0 · Sistema de Turnos</p>
+      </div>
+    </div>
+    <div id="login-setup-alert" class="alert alert-warn" style="display:none">
+      ⚠️ <span>No hay servidor configurado. <button onclick="showSetup()" style="background:none;border:none;color:inherit;cursor:pointer;text-decoration:underline;">Configurar ahora →</button></span>
+    </div>
+    <div class="form-row">
+      <label class="field-label">Usuario</label>
+      <input type="text" id="inp-user" placeholder="usuario" autocomplete="username" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <div class="form-row">
+      <label class="field-label">Contraseña</label>
+      <input type="password" id="inp-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <div id="login-err" style="display:none" class="alert alert-warn">❌ <span id="login-err-msg">Credenciales incorrectas.</span></div>
+    <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px;justify-content:center;" onclick="login()">Ingresar →</button>
+    <p style="text-align:center;font-size:11px;color:var(--text3);margin-top:20px;font-family:'IBM Plex Mono',monospace;">¿Primer uso? <button onclick="showSetup()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:11px;text-decoration:underline;font-family:inherit;">Configurar servidor →</button></p>
+  </div>
+</div>
+
+<!-- ══════════════ SETUP ══════════════ -->
+<div id="screen-setup" class="screen" style="overflow-y:auto;align-items:flex-start;justify-content:center;padding:24px;">
+  <div class="setup-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h2 style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;">⚙️ Configuración inicial</h2>
+      <button class="btn btn-ghost btn-sm" onclick="showScreen('screen-login')">← Volver</button>
+    </div>
+    <div class="alert alert-info">ℹ️ Esta configuración solo se hace una vez. Los datos se guardan en este navegador.</div>
+    <div class="setup-step">
+      <h3>1. Crear Google Sheets</h3>
+      <p>Creá una nueva planilla en Google Sheets. Copiá el ID de la URL:<br><code>docs.google.com/spreadsheets/d/<strong>[ID AQUÍ]</strong>/edit</code></p>
+    </div>
+    <div class="setup-step">
+      <h3>2. Crear Google Apps Script</h3>
+      <p>En la planilla, ir a <strong>Extensiones → Apps Script</strong>. Borrá el código existente y pegá el contenido del archivo <code>apps-script.js</code> que se incluye con esta app. Guardá.</p>
+    </div>
+    <div class="setup-step">
+      <h3>3. Implementar como Web App</h3>
+      <p>En Apps Script: <strong>Implementar → Nueva implementación → Web App</strong>. Configurar:<br>
+      • Ejecutar como: <code>Yo</code><br>
+      • Quién tiene acceso: <code>Cualquier usuario</code><br>
+      Copiá la URL que aparece.</p>
+    </div>
+    <div class="form-row">
+      <label class="field-label">URL del Apps Script <span class="req">*</span></label>
+      <input type="text" id="inp-script-url" placeholder="https://script.google.com/macros/s/...">
+    </div>
+    <div class="form-row">
+      <label class="field-label">Contraseña de Admin inicial</label>
+      <input type="password" id="inp-admin-pass" placeholder="Mínimo 6 caracteres" value="admin123">
+      <div class="field-hint">El usuario admin se crea automáticamente con esta contraseña.</div>
+    </div>
+    <button class="btn btn-primary btn-lg" style="width:100%;justify-content:center;" onclick="saveSetup()">Guardar configuración e inicializar →</button>
+  </div>
+</div>
+
+<!-- ══════════════ MAIN APP ══════════════ -->
+<div id="screen-app" class="screen" style="flex-direction:column;">
+  <!-- Mobile top bar -->
+  <div id="mobile-bar">
+    <button class="hamburger" onclick="openSidebar()">☰</button>
+    <div class="mob-title">Ladr<span>App</span></div>
+    <div style="flex:1"></div>
+    <span id="mob-turno-badge" class="turno-pill"></span>
+  </div>
+
+  <div style="display:flex;flex:1;overflow:hidden;">
+    <!-- SIDEBAR -->
+    <nav id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="brick">🧱</div>
+          <div>
+            <h1>Ladr<span>App</span></h1>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-name" id="sb-user-name">—</div>
+        <div style="margin-top:4px;"><span class="badge-role" id="sb-user-role">—</span></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">Principal</div>
+        <button class="nav-item active" id="nav-dashboard" onclick="showPanel('dashboard')">
+          <span class="icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" id="nav-form" onclick="showPanel('form')" id="nav-form-btn">
+          <span class="icon">📋</span> Nuevo Turno
+        </button>
+        <button class="nav-item" id="nav-history" onclick="showPanel('history')">
+          <span class="icon">📁</span> Historial
+        </button>
+        <div class="nav-section" id="nav-section-admin" style="display:none">Administración</div>
+        <button class="nav-item" id="nav-admin-users" onclick="showPanel('admin-users')" style="display:none">
+          <span class="icon">👤</span> Usuarios
+        </button>
+        <button class="nav-item" id="nav-admin-personal" onclick="showPanel('admin-personal')" style="display:none">
+          <span class="icon">👷</span> Personal
+        </button>
+        <button class="nav-item" id="nav-admin-palas" onclick="showPanel('admin-palas')" style="display:none">
+          <span class="icon">🚧</span> Palas
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="shift-badge" id="sb-shift-badge">
+          <div class="shift-label">Turno actual</div>
+          <div class="shift-value" id="sb-turno">—</div>
+          <div class="shift-time" id="sb-time">—</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px;justify-content:center;" onclick="logout()">🚪 Cerrar sesión</button>
+      </div>
+    </nav>
+
+    <!-- CONTENT -->
+    <div id="content">
+
+      <!-- ── DASHBOARD ── -->
+      <div id="panel-dashboard" class="panel active">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Dashboard</div>
+            <div class="panel-subtitle" id="dash-subtitle">Cargando datos...</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">↺ Actualizar</button>
+        </div>
+
+        <div class="grid grid-4" style="margin-bottom:20px;" id="dash-stats">
+          <div class="card"><div class="stat-label">Turnos (30d)</div><div class="stat-value stat-accent" id="ds-turnos">—</div><div class="stat-sub">registrados</div></div>
+          <div class="card"><div class="stat-label">Ton. Molidas (30d)</div><div class="stat-value stat-ok" id="ds-ton">—</div><div class="stat-sub">toneladas</div></div>
+          <div class="card"><div class="stat-label">Pallets (30d)</div><div class="stat-value stat-warn" id="ds-pallets">—</div><div class="stat-sub">descargados</div></div>
+          <div class="card"><div class="stat-label">T2 Activo</div><div class="stat-value" id="ds-turno-now">—</div><div class="stat-sub" id="ds-turno-now-sub">—</div></div>
+        </div>
+
+        <div class="grid grid-2" style="margin-bottom:20px;">
+          <div class="card">
+            <div class="stat-label" style="margin-bottom:16px;">Producción por tipo de ladrillo (último mes)</div>
+            <div class="chart-wrap"><canvas id="chart-prod"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="stat-label" style="margin-bottom:16px;">Toneladas molidas (últimos 14 días)</div>
+            <div class="chart-wrap"><canvas id="chart-ton"></canvas></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div class="stat-label">Últimos turnos registrados</div>
+            <button class="btn btn-ghost btn-sm" onclick="showPanel('history')">Ver todos →</button>
+          </div>
+          <div class="table-wrap" id="dash-recent-table">
+            <div class="empty-state"><div class="empty-icon">📋</div><p>Cargando...</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── FORM ── -->
+      <div id="panel-form" class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Nuevo Turno</div>
+            <div class="panel-subtitle">Completá todos los datos del turno actual</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <span class="draft-indicator" id="draft-indicator" style="display:none">● BORRADOR</span>
+            <button class="btn btn-ghost btn-sm" onclick="clearDraft()">🗑 Borrar borrador</button>
+          </div>
+        </div>
+        <div class="form-wizard" id="form-wizard"></div>
+      </div>
+
+      <!-- ── HISTORY ── -->
+      <div id="panel-history" class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Historial de Turnos</div>
+            <div class="panel-subtitle">Últimos 50 registros</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadHistory()">↺ Actualizar</button>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            <div style="flex:1;min-width:160px;">
+              <label class="field-label">Filtrar por supervisor</label>
+              <select id="hist-filter-sup" onchange="filterHistory()"><option value="">Todos</option></select>
+            </div>
+            <div style="flex:1;min-width:120px;">
+              <label class="field-label">Turno</label>
+              <select id="hist-filter-turno" onchange="filterHistory()">
+                <option value="">Todos</option>
+                <option>T1</option><option>T2</option><option>T3</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label class="field-label">Desde</label>
+              <input type="date" id="hist-filter-from" onchange="filterHistory()">
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label class="field-label">Hasta</label>
+              <input type="date" id="hist-filter-to" onchange="filterHistory()">
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap" id="history-table">
+          <div class="empty-state"><div class="empty-icon">📁</div><p>Cargando historial...</p></div>
+        </div>
+      </div>
+
+      <!-- ── ADMIN USERS ── -->
+      <div id="panel-admin-users" class="panel">
+        <div class="panel-header">
+          <div><div class="panel-title">Gestión de Usuarios</div></div>
+          <button class="btn btn-primary btn-sm" onclick="showAddUserModal()">+ Nuevo usuario</button>
+        </div>
+        <div class="table-wrap" id="users-table">
+          <div class="empty-state"><div class="empty-icon">👤</div><p>Cargando...</p></div>
+        </div>
+      </div>
+
+      <!-- ── ADMIN PERSONAL ── -->
+      <div id="panel-admin-personal" class="panel">
+        <div class="panel-header">
+          <div><div class="panel-title">Personal</div><div class="panel-subtitle">Gestión de operarios por sector</div></div>
+          <button class="btn btn-primary btn-sm" onclick="showAddPersonalModal()">+ Agregar operario</button>
+        </div>
+        <div class="table-wrap" id="personal-table">
+          <div class="empty-state"><div class="empty-icon">👷</div><p>Cargando...</p></div>
+        </div>
+      </div>
+
+      <!-- ── ADMIN PALAS ── -->
+      <div id="panel-admin-palas" class="panel">
+        <div class="panel-header">
+          <div><div class="panel-title">Palas / Equipos</div><div class="panel-subtitle">Gestión de maquinaria</div></div>
+          <button class="btn btn-primary btn-sm" onclick="showAddPalaModal()">+ Agregar pala</button>
+        </div>
+        <div class="table-wrap" id="palas-table">
+          <div class="empty-state"><div class="empty-icon">🚧</div><p>Cargando...</p></div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIGURATION & CONSTANTS
+// ═══════════════════════════════════════════════
+const APP_VERSION = '1.0.0';
+const LS_CONFIG   = 'ladrapp_config';
+const LS_SESSION  = 'ladrapp_session';
+const LS_DRAFT    = 'ladrapp_draft';
+
+const DATA = {
+  supervisores: ['Ayala, Erika','Díaz, Daniel','Fernández, José (Reemplazo)','Lara, Lisandro','Maldonado, Pablo (Reemplazo)','Nickler, José','Pérez, Alejandro','Saraspe, Alan'],
+  tiposLadrillo: ['H8','H8 5c','H8x25','H12','H12 5c','H12x25','H18','H18 5c','H18x25','P12','P18','L12,5','L16,5','DM20','DM27','KB'],
+  tiposLadrilloCarga: ['H8','H8x25','H12','H12x25','H18','H18x25','P12','P18','L12,5','L16,5','DM20','DM27','KB'],
+  palas: ['CAT 938 H','CAT 938 G','KOM 430','LIU 855','LON 856'],
+  autoelevadores: ['Linde','T30','T45','Dosan 1','Dosan 2'],
+  personal: {
+    electricistas: ['-','Gomez, Daniel','Lara, Lisandro','Lastra, David','Lazarte, Gustavo','Majolli, Santiago','Moreno, José','Ocaranza, Ignacio','Villagra, Nicolás'],
+    mecanicos: ['-','Chocobar, Martín','Gianfracisco, Pablo','Gomez, Daniel','Juarez, Juan','Lara, Lisandro','Mansilla, Gastón','Mendez, Julián','Moreno, José','Moreno, Raúl','Robotti, Damián'],
+    auxiliares: ['-','Acuña, José','Agudo, Emanuel','Aguilar, Alexis','Albornoz, Patricio','Angiuli, Juan','Artaza, Ignacio','Brito, Federico','Carlorossi, Gustavo','Chocobar, Martín','Costilla, Brahian','Díaz Tolaba, Gonzalo','Díaz, José','Figueroa, Pablo','Gianfracisco, Pablo','Gil, Maximiliano','Godoy, Alberto','Gomez, Daniel','Gonzalez, César','Guardia, Rubén','Juarez, Juan','Juárez, Nelsón','Lagoria, Jeremias','Lara, Lisandro','Lastra, David','Lazarte, Gustavo','Lescano, Ignacio','Lobo, Miguel','Madrid, Nicolás','Majolli, Santiago','Mansilla, Gastón','Marquez, José','Mendez, Julián','Moreno, José','Moreno, Raúl','Nickler, Ivan','Ocaranza, Ignacio','Olmos, Cristian','Ortiz, Diego','Rasjido, Franco','Rivas, Andrés','Robotti, Damián','Ruiz, Nicolás','Saraspe, Alan','Tarascio, Sergio','Valenzuela, Martín','Villagra, Nicolás','Yñiguez, Cristian'],
+    maquinistas: ['-','Albornoz, Patricio','Carlorossi, Gustavo','Díaz, José','Olmos, Cristian','Pereyra, Bryan','Radi, Juan','Rivas, Andrés','Trejo, Juan','Varela, Daniel'],
+    molienda: ['-','Agudo, Emanuel','Aguilar, Alexis','Carlorossi, Gustavo','Chocobar, Martín','Costilla, Brahian','Díaz, José','Fernández, Germán','Gianfracisco, Pablo','Godoy, Alberto','Guardia, Rubén','Juárez, Juan','Juárez, Nelsón','Lagoria, Jeremias','Lobo, Miguel','Moreno, José','Moyano, Victor','Rasjido, Franco','Ruiz, Nicolás','Valenzuela, Martín','Villagra, Nicolás','Yñiguez, Cristian'],
+    sacapiedras: ['-','Acuña, José','Agudo, Emanuel','Aguilar, Alexis','Albornoz, Patricio','Angiuli, Juan','Artaza, Ignacio','Brito, Federico','Burgos, Wilfredo','Carlorossi, Gustavo','Chocobar, Martín','Costilla, Brahian','Díaz Tolaba, Gonzalo','Díaz, José','Fernández, Germán','Figueroa, Pablo','Gianfracisco, Pablo','Gil, Alfredo','Gil, Maximiliano','Godoy, Alberto','Gomez, Daniel','Gonzalez, César','Guardia, Rubén','Juárez, Juan','Juárez, Nelsón','Lagoria, Jeremias','Lara, Lisandro','Lastra, David','Lescano, Ignacio','Lobo, Miguel','Madrid, Nicolás','Majolli, Santiago','Mamaní, Francisco','Mansilla, Gastón','Marquez, José','Mendez, Julián','Montenegro, Cristian','Moreno, José','Moreno, Raúl','Moyano, Francisco','Moyano, Franco','Moyano, Víctor','Nickler, Ivan','Olmos, Cristian','Ortiz, Diego','Páez, Nicolás','Rasjido, Franco','Rivas, Andrés','Robotti, Damián','Ruiz, Nicolás','Sanchez, Adolfo','Saraspe, Alan','Tarascio, Sergio','Valenzuela, Martín','Yñiguez, Cristian'],
+    produccion: ['-','Costilla, Brahian','Gil, Maximiliano','Gonzalez, César','Lazarte, Gustavo','Lescano, Ignacio','Majolli, Santiago','Montenegro, Cristian','Moyano, Francisco','Nickler, Ivan','Ortiz, Diego','Robotti, Damián','Villagra, Nicolás','Yñiguez, Cristian'],
+    carga: ['-','Agudo, Emanuel','Artaza, Ignacio','Chocobar, Martín','Díaz Tolaba, Gonzalo','Figueroa, Pablo','Gianfracisco, Pablo','Gil, Maximiliano','Gonzalez, César','Juárez, Nelsón','Lagoria, Jeremias','Lazarte, Gustavo','Lescano, Ignacio','Lobo, Miguel','Majolli, Santiago','Mansilla, Gastón','Marquez, José','Moreno, José','Moyano, Victor','Robotti, Damián','Ruiz, Nicolás','Saraspe, Alan'],
+    descarga: ['-','Artaza, Ignacio','Brito, Federico','Carlorossi, Gustavo','Costilla, Brahian','Díaz Tolaba, Gonzalo','Gianfracisco, Pablo','Gil, Maximiliano','Godoy, Alberto','Gomez, Daniel','Gonzalez, César','Juárez, Juan','Juárez, Nelsón','Lazarte, Gustavo','Lescano, Ignacio','Lobo, Miguel','Moreno, José','Ortiz, Diego','Rasjido, Franco','Ruiz, Nicolás','Villagra, Nicolás'],
+    autoelevadoristas: ['-','Acuña, José','Agudo, Emanuel','Aguilar, Alexis','Angiuli, Juan','Brito, Federico','Gil, Maximiliano','Gomez, Daniel','Juárez, Nelsón','Lescano, Ignacio','Mendez, Julián','Moreno, César','Ortiz, Diego','Quiroga, Cristian','Quiroga, Sergio','Rivadeneira, Roberto','Tarascio, Sergio'],
+    ausentes: ['Agudo, Emanuel','Aguilar, Alexis','Albornoz, Patricio','Angiuli, Juan','Artaza, Ignacio','Brito, Federico','Carlorossi, Gustavo','Chocobar, Martín','Costilla, Brahian','Díaz Tolaba, Gonzalo','Díaz, José','Figueroa, Pablo','Gianfracisco, Pablo','Gil, Maximiliano','Godoy, Alberto','Gomez, Daniel','Gonzalez, César','Guardia, Rubén','Juarez, Juan','Juárez, Nelsón','Lagoria, Jeremias','Lara, Lisandro','Lastra, David','Lescano, Ignacio','Lobo, Miguel','Majolli, Santiago','Mansilla, Gastón','Marquez, José','Mendez, Julián','Moreno, César','Moreno, José','Moreno, Raúl','Nickler, Ivan','Ocaranza, Ignacio','Olmos, Cristian','Ortiz, Diego','Pereyra, Brian','Quiroga, Sergio','Rasjido, Franco','Rivas, Andrés','Robotti, Damián','Ruiz, Nicolás','Saraspe, Alan','Tarascio, Sergio','Trejo, Juan','Valenzuela, Martín','Villagra, Nicolás','Yñiguez, Cristian']
+  }
+};
+
+// ═══════════════════════════════════════════════
+// CONFIG & SESSION
+// ═══════════════════════════════════════════════
+const Config = {
+  get(){ return JSON.parse(localStorage.getItem(LS_CONFIG)||'{}'); },
+  set(v){ localStorage.setItem(LS_CONFIG,JSON.stringify(v)); },
+  getUrl(){ return (this.get()).scriptUrl||''; }
+};
+
+const Session = {
+  get(){ return JSON.parse(sessionStorage.getItem(LS_SESSION)||'null'); },
+  set(v){ sessionStorage.setItem(LS_SESSION,JSON.stringify(v)); },
+  clear(){ sessionStorage.removeItem(LS_SESSION); },
+  role(){ const s=this.get(); return s?s.rol:''; },
+  can(roles){ return roles.includes(this.role()); }
+};
+
+// ═══════════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════════
+const API = {
+  async call(action, payload){
+    const url = Config.getUrl();
+    if(!url) throw new Error('Sin URL de servidor');
+    try {
+      const res = await fetch(url, {
+        method:'POST',
+        body: JSON.stringify({action,...payload}),
+        headers:{'Content-Type':'application/json'}
+      });
+      const json = await res.json();
+      if(!json.success) throw new Error(json.error||'Error del servidor');
+      return json;
+    } catch(e) {
+      // If CORS error on POST, try GET fallback
+      if(e.message.includes('fetch')||e.message.includes('CORS')){
+        const params = new URLSearchParams({action, data: JSON.stringify(payload)});
+        const r2 = await fetch(`${url}?${params}`);
+        const j2 = await r2.json();
+        if(!j2.success) throw new Error(j2.error||'Error del servidor');
+        return j2;
+      }
+      throw e;
+    }
+  },
+  async login(username,password){ return this.call('login',{username,password}); },
+  async submitTurno(turno){ return this.call('submitTurno',{turno}); },
+  async getTurnos(params={}){ return this.call('getTurnos',params); },
+  async getDashboard(){ return this.call('getDashboard',{}); },
+  async getUsers(){ return this.call('getUsers',{}); },
+  async addUser(data){ return this.call('addUser',data); },
+  async getPersonal(){ return this.call('getPersonal',{}); },
+  async addPersonal(data){ return this.call('addPersonal',data); },
+  async initSetup(adminPass){ return this.call('initSetup',{adminPass}); }
+};
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+function toast(msg,type='info'){
+  const el=document.createElement('div');
+  el.className=`toast-item toast-${type}`;
+  el.textContent=msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(()=>el.remove(),4000);
+}
+
+// ═══════════════════════════════════════════════
+// LOADING
+// ═══════════════════════════════════════════════
+function setLoading(v){ document.getElementById('loading').classList.toggle('show',v); }
+
+// ═══════════════════════════════════════════════
+// SCREENS
+// ═══════════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function showSetup(){ showScreen('screen-setup'); }
+
+// ═══════════════════════════════════════════════
+// PANELS
+// ═══════════════════════════════════════════════
+function showPanel(name){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  const nb=document.getElementById(`nav-${name}`);
+  if(nb) nb.classList.add('active');
+  closeSidebar();
+  if(name==='dashboard') loadDashboard();
+  if(name==='history') loadHistory();
+  if(name==='admin-users') loadUsers();
+  if(name==='admin-personal') loadPersonalTable();
+  if(name==='admin-palas') loadPalasTable();
+  if(name==='form') initForm();
+}
+
+// ═══════════════════════════════════════════════
+// SIDEBAR (mobile)
+// ═══════════════════════════════════════════════
+function openSidebar(){
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-overlay').classList.add('show');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
+}
+
+// ═══════════════════════════════════════════════
+// SETUP
+// ═══════════════════════════════════════════════
+async function saveSetup(){
+  const url = document.getElementById('inp-script-url').value.trim();
+  const adminPass = document.getElementById('inp-admin-pass').value.trim();
+  if(!url){ toast('Ingresá la URL del Apps Script','err'); return; }
+  if(!adminPass||adminPass.length<6){ toast('La contraseña debe tener al menos 6 caracteres','err'); return; }
+  Config.set({scriptUrl:url});
+  setLoading(true);
+  try {
+    await API.initSetup(adminPass);
+    toast('Configuración guardada. Podés iniciar sesión.','ok');
+    showScreen('screen-login');
+  } catch(e){
+    toast('Error: '+e.message,'err');
+  }
+  setLoading(false);
+}
+
+// ═══════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════
+async function login(){
+  const user = document.getElementById('inp-user').value.trim();
+  const pass = document.getElementById('inp-pass').value;
+  if(!user||!pass){ toast('Completá usuario y contraseña','err'); return; }
+  
+  const errEl = document.getElementById('login-err');
+  errEl.style.display='none';
+
+  if(!Config.getUrl()){
+    document.getElementById('login-setup-alert').style.display='flex';
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const r = await API.login(user,pass);
+    Session.set(r.user);
+    enterApp();
+  } catch(e){
+    errEl.style.display='flex';
+    document.getElementById('login-err-msg').textContent = e.message||'Credenciales incorrectas.';
+  }
+  setLoading(false);
+}
+
+function logout(){
+  Session.clear();
+  document.getElementById('inp-pass').value='';
+  showScreen('screen-login');
+}
+
+function enterApp(){
+  const u = Session.get();
+  showScreen('screen-app');
+  // Update sidebar
+  document.getElementById('sb-user-name').textContent = u.nombre||u.username;
+  const roleEl = document.getElementById('sb-user-role');
+  roleEl.textContent = u.rol;
+  roleEl.className = 'badge-role role-'+u.rol;
+  // Show admin menus if needed
+  const isAdmin = u.rol==='admin';
+  const isGer   = u.rol==='gerencia'||isAdmin;
+  document.getElementById('nav-section-admin').style.display = isAdmin?'':'none';
+  document.getElementById('nav-admin-users').style.display = isAdmin?'':'none';
+  document.getElementById('nav-admin-personal').style.display = isAdmin?'':'none';
+  document.getElementById('nav-admin-palas').style.display = isAdmin?'':'none';
+  // Hide form for gerencia
+  document.getElementById('nav-form').style.display = (u.rol==='gerencia')?'none':'';
+  updateShiftBadge();
+  showPanel('dashboard');
+}
+
+// ═══════════════════════════════════════════════
+// CURRENT SHIFT
+// ═══════════════════════════════════════════════
+function getCurrentShift(){
+  const h = new Date().getHours();
+  if(h>=22||h<6) return 'T1';
+  if(h>=6&&h<14) return 'T2';
+  return 'T3';
+}
+const SHIFT_LABELS = {T1:'Noche · 22:00–06:00',T2:'Mañana · 06:00–14:00',T3:'Tarde · 14:00–22:00'};
+
+function updateShiftBadge(){
+  const t=getCurrentShift();
+  const el=document.getElementById('sb-turno');
+  if(el){ el.textContent=t; el.className='turno-pill turno-'+t; }
+  const tl=document.getElementById('sb-time');
+  if(tl) tl.textContent=SHIFT_LABELS[t];
+  const mob=document.getElementById('mob-turno-badge');
+  if(mob){ mob.textContent=t; mob.className='turno-pill turno-'+t; }
+  // Shift badge in sidebar
+  const sb=document.getElementById('sb-shift-badge');
+  if(sb){
+    const sv=sb.querySelector('.shift-value');
+    if(sv){ sv.textContent=t; sv.className='shift-value turno-pill turno-'+t; }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════
+let charts={};
+async function loadDashboard(){
+  document.getElementById('dash-subtitle').textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  try {
+    const r = await API.getDashboard();
+    const d = r.data;
+    document.getElementById('ds-turnos').textContent = d.totalTurnos30||0;
+    document.getElementById('ds-ton').textContent = (d.totalToneladas30||0).toFixed(0);
+    document.getElementById('ds-pallets').textContent = d.totalPallets30||0;
+    const ct=getCurrentShift();
+    document.getElementById('ds-turno-now').innerHTML=`<span class="turno-pill turno-${ct}">${ct}</span>`;
+    document.getElementById('ds-turno-now-sub').textContent=SHIFT_LABELS[ct];
+    // Charts
+    renderCharts(d);
+    // Recent table
+    renderRecentTable(d.recentTurnos||[]);
+  } catch(e){
+    toast('No se pudo cargar el dashboard: '+e.message,'err');
+    renderRecentTable([]);
+  }
+}
+
+function renderCharts(d){
+  // Production by type
+  if(charts.prod) charts.prod.destroy();
+  const cpCtx=document.getElementById('chart-prod').getContext('2d');
+  const prodData = d.produccionPorTipo||{};
+  charts.prod=new Chart(cpCtx,{
+    type:'bar',
+    data:{
+      labels:Object.keys(prodData),
+      datasets:[{label:'Zorras',data:Object.values(prodData),backgroundColor:'rgba(224,90,26,.7)',borderColor:'rgba(224,90,26,1)',borderWidth:1,borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9a9890',font:{size:10}}},y:{ticks:{color:'#9a9890'},grid:{color:'rgba(255,255,255,.05)'}}}}
+  });
+
+  // Toneladas last 14d
+  if(charts.ton) charts.ton.destroy();
+  const ctCtx=document.getElementById('chart-ton').getContext('2d');
+  const tonData = d.toneladas14d||{labels:[],data:[]};
+  charts.ton=new Chart(ctCtx,{
+    type:'line',
+    data:{
+      labels:tonData.labels||[],
+      datasets:[{label:'Ton',data:tonData.data||[],borderColor:'#f5a623',backgroundColor:'rgba(245,166,35,.1)',fill:true,tension:0.4,pointBackgroundColor:'#f5a623',pointRadius:3}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9a9890',font:{size:10}}},y:{ticks:{color:'#9a9890'},grid:{color:'rgba(255,255,255,.05)'}}}}
+  });
+}
+
+function renderRecentTable(rows){
+  const el=document.getElementById('dash-recent-table');
+  if(!rows.length){ el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><p>Sin registros aún</p></div>'; return; }
+  el.innerHTML=`<table>
+    <thead><tr><th>Fecha</th><th>Turno</th><th>Supervisor</th><th>Horas</th><th>Ton. Molienda</th><th>Pallets</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td class="mono">${r.FECHA||''}</td>
+      <td><span class="badge badge-${r.TURNO}">${r.TURNO||''}</span></td>
+      <td>${r.SUPERVISOR||''}</td>
+      <td class="mono">${r.HORAS||''}</td>
+      <td class="mono">${r.TON_MOLIENDA||'—'}</td>
+      <td class="mono">${r.PALLETS_TOTAL||'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ═══════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════
+let _allTurnos = [];
+async function loadHistory(){
+  document.getElementById('history-table').innerHTML='<div class="empty-state"><div class="empty-icon">⏳</div><p>Cargando...</p></div>';
+  try {
+    const r = await API.getTurnos({limit:50});
+    _allTurnos = r.data||[];
+    // Populate supervisor filter
+    const sups=[...new Set(_allTurnos.map(t=>t.SUPERVISOR).filter(Boolean))];
+    const fSup=document.getElementById('hist-filter-sup');
+    fSup.innerHTML='<option value="">Todos</option>'+sups.map(s=>`<option>${s}</option>`).join('');
+    filterHistory();
+  } catch(e){
+    toast('Error al cargar historial: '+e.message,'err');
+    document.getElementById('history-table').innerHTML='<div class="empty-state"><div class="empty-icon">❌</div><p>Error al cargar</p></div>';
+  }
+}
+
+function filterHistory(){
+  const sup=document.getElementById('hist-filter-sup').value;
+  const turno=document.getElementById('hist-filter-turno').value;
+  const from=document.getElementById('hist-filter-from').value;
+  const to=document.getElementById('hist-filter-to').value;
+  let rows=_allTurnos;
+  if(sup) rows=rows.filter(r=>r.SUPERVISOR===sup);
+  if(turno) rows=rows.filter(r=>r.TURNO===turno);
+  if(from) rows=rows.filter(r=>r.FECHA>=from);
+  if(to) rows=rows.filter(r=>r.FECHA<=to);
+  renderHistoryTable(rows);
+}
+
+function renderHistoryTable(rows){
+  const el=document.getElementById('history-table');
+  if(!rows.length){ el.innerHTML='<div class="empty-state"><div class="empty-icon">📁</div><p>Sin registros</p></div>'; return; }
+  el.innerHTML=`<table>
+    <thead><tr><th>Fecha</th><th>Turno</th><th>Supervisor</th><th>Horas</th><th>Electricista</th><th>Mecánico</th><th>Ton. Mol.</th><th>Pallets</th><th>Ausentes</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td class="mono">${r.FECHA||''}</td>
+      <td><span class="badge badge-${r.TURNO}">${r.TURNO||''}</span></td>
+      <td>${r.SUPERVISOR||''}</td>
+      <td class="mono">${r.HORAS||''}</td>
+      <td>${r.ELECTRICISTA||'—'}</td>
+      <td>${r.MECANICO||'—'}</td>
+      <td class="mono">${r.TON_MOLIENDA||'—'}</td>
+      <td class="mono">${r.PALLETS_TOTAL||'—'}</td>
+      <td style="font-size:11px;color:var(--text2)">${r.AUSENTES||'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN USERS
+// ═══════════════════════════════════════════════
+let _users=[];
+async function loadUsers(){
+  try{
+    const r=await API.getUsers();
+    _users=r.data||[];
+    renderUsersTable();
+  } catch(e){ toast('Error: '+e.message,'err'); }
+}
+function renderUsersTable(){
+  const el=document.getElementById('users-table');
+  if(!_users.length){ el.innerHTML='<div class="empty-state"><div class="empty-icon">👤</div><p>Sin usuarios</p></div>'; return; }
+  el.innerHTML=`<table>
+    <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Activo</th></tr></thead>
+    <tbody>${_users.map(u=>`<tr>
+      <td class="mono">${u.USERNAME}</td>
+      <td>${u.NOMBRE}</td>
+      <td><span class="badge-role role-${u.ROL}">${u.ROL}</span></td>
+      <td>${u.ACTIVO?'✅':'❌'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+function showAddUserModal(){
+  const roles=['admin','supervisor','operario','gerencia'];
+  showModal('Nuevo Usuario',`
+    <div class="form-row"><label class="field-label">Usuario <span class="req">*</span></label><input type="text" id="mu-user" placeholder="usuario123"></div>
+    <div class="form-row"><label class="field-label">Nombre completo <span class="req">*</span></label><input type="text" id="mu-nombre" placeholder="Juan Pérez"></div>
+    <div class="form-row"><label class="field-label">Contraseña <span class="req">*</span></label><input type="password" id="mu-pass" placeholder="••••••••"></div>
+    <div class="form-row"><label class="field-label">Rol <span class="req">*</span></label><select id="mu-rol">${roles.map(r=>`<option value="${r}">${r}</option>`).join('')}</select></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="addUser()">Crear usuario</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    </div>
+  `);
+}
+async function addUser(){
+  const username=document.getElementById('mu-user').value.trim();
+  const nombre=document.getElementById('mu-nombre').value.trim();
+  const password=document.getElementById('mu-pass').value;
+  const rol=document.getElementById('mu-rol').value;
+  if(!username||!nombre||!password){ toast('Completá todos los campos','err'); return; }
+  setLoading(true);
+  try{
+    await API.addUser({username,nombre,password,rol});
+    closeModal();
+    toast('Usuario creado correctamente','ok');
+    loadUsers();
+  } catch(e){ toast('Error: '+e.message,'err'); }
+  setLoading(false);
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN PERSONAL
+// ═══════════════════════════════════════════════
+let _personal=[];
+async function loadPersonalTable(){
+  try{
+    const r=await API.getPersonal();
+    _personal=r.data||[];
+    renderPersonalTable();
+  } catch(e){ toast('Error: '+e.message,'err'); }
+}
+function renderPersonalTable(){
+  const el=document.getElementById('personal-table');
+  const data=_personal.length?_personal:DATA.personal.ausentes.map(n=>({NOMBRE:n,SECTOR:'General',ACTIVO:true}));
+  el.innerHTML=`<table>
+    <thead><tr><th>Nombre</th><th>Sector</th><th>Activo</th></tr></thead>
+    <tbody>${data.map(p=>`<tr>
+      <td>${p.NOMBRE}</td>
+      <td>${p.SECTOR||'—'}</td>
+      <td>${p.ACTIVO!==false?'✅':'❌'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+function showAddPersonalModal(){
+  showModal('Agregar Operario',`
+    <div class="form-row"><label class="field-label">Apellido, Nombre <span class="req">*</span></label><input type="text" id="mp-nombre" placeholder="García, Juan"></div>
+    <div class="form-row"><label class="field-label">Sector</label>
+      <select id="mp-sector">
+        <option>General</option><option>Molienda</option><option>Silo</option><option>Producción</option>
+        <option>Carga</option><option>Descarga</option><option>Horno</option><option>Secadero</option><option>Mantenimiento</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="addPersonalOp()">Agregar</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    </div>
+  `);
+}
+async function addPersonalOp(){
+  const nombre=document.getElementById('mp-nombre').value.trim();
+  const sector=document.getElementById('mp-sector').value;
+  if(!nombre){ toast('Ingresá el nombre','err'); return; }
+  setLoading(true);
+  try{
+    await API.addPersonal({nombre,sector});
+    closeModal();
+    toast('Operario agregado','ok');
+    loadPersonalTable();
+  } catch(e){ toast('Error: '+e.message,'err'); }
+  setLoading(false);
+}
+
+// ═══════════════════════════════════════════════
+// ADMIN PALAS
+// ═══════════════════════════════════════════════
+function loadPalasTable(){
+  const el=document.getElementById('palas-table');
+  el.innerHTML=`<table>
+    <thead><tr><th>Nombre</th><th>Capacidad balde (m³)</th><th>Activo</th></tr></thead>
+    <tbody>
+      ${DATA.palas.map(p=>`<tr><td>${p}</td><td class="mono">3.0</td><td>✅</td></tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+function showAddPalaModal(){
+  showModal('Agregar Pala/Equipo',`
+    <div class="form-row"><label class="field-label">Nombre del equipo <span class="req">*</span></label><input type="text" id="mpal-nombre" placeholder="Ej: CAT 950 H"></div>
+    <div class="form-row"><label class="field-label">Capacidad del balde (m³)</label><input type="number" id="mpal-m3" value="3" step="0.1" min="0.5" max="10"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="closeModal();toast('Pala agregada (se guardará en próxima versión)','info')">Agregar</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    </div>
+  `);
+}
+
+// ═══════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════
+function showModal(title,body){
+  document.getElementById('modal-body').innerHTML=`
+    <div class="modal-header"><div class="modal-title">${title}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    ${body}`;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('show'); }
+
+// ═══════════════════════════════════════════════
+// FORM - STATE
+// ═══════════════════════════════════════════════
+const STEPS = ['Encabezado','Personal','Novedades','Molienda','Silo','Producción','Carga','Descarga','Horno','Seguridad','Resumen'];
+
+let F = {}; // form state
+let currentStep = 0;
+let draftTimer = null;
+
+function initForm(){
+  const draft = localStorage.getItem(LS_DRAFT);
+  if(draft){
+    F = JSON.parse(draft);
+    currentStep = F._step||0;
+    document.getElementById('draft-indicator').style.display='inline-flex';
+  } else {
+    F = buildInitialState();
+    currentStep = 0;
+  }
+  renderForm();
+}
+
+function buildInitialState(){
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const dateStr=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  return {
+    _step:0,
+    encabezado:{ fecha:dateStr, supervisor:'', turno:getCurrentShift(), horas:'8' },
+    personal:{ electricista:'-', mecanico:'-', aux1:'-', aux2:'-', aux3:'-', maquinistaMolienda:'-', maquinistaSilo:'-', molienda:'-', sacapiedras:'-', produccion:'-', carga:'-', descarga:'-', autoelevador:'-' },
+    autoelevadores:[],
+    ausentes:[],
+    novedades:{ general:'', molindaSilo:'', produccion:'', carga:'', descarga:'', secaderoHorno:'' },
+    molienda:{ pala:'', paladas:'', m3Balde:'3', obs:'' },
+    silo:{ pala:'', paladas:'', m3Balde:'3', tiempo:'', conos:[] },
+    produccion:{ tipo1:'', molde1:'1', zorras1:'', tipo2:'', molde2:'1', zorras2:'', tipo3:'', molde3:'1', zorras3:'', tipo4:'', molde4:'1', zorras4:'', tiempoExtrusora:'', tiempoDescarte:'', lavado:'No', puntada:'No', modulo:'No', tieneTipo2:false, tieneTipo3:false, tieneTipo4:false },
+    carga:{ tipo1:'', vagonetas1:'', tipo2:'', vagonetas2:'', tieneTipo2:false },
+    descarga:{ tipo1:'', pallets1:'', comercial1:'', tipo2:'', pallets2:'', comercial2:'', tipo3:'', pallets3:'', comercial3:'', tieneTipo2:false, tieneTipo3:false },
+    hornoSalida:{ tipo1:'', vagones1:'', tipo2:'', vagones2:'', tipo3:'', vagones3:'', tieneTipo2:false, tieneTipo3:false },
+    seguridad:{ situacion:'No', descripcion:'' }
+  };
+}
+
+function saveDraft(){
+  F._step=currentStep;
+  localStorage.setItem(LS_DRAFT,JSON.stringify(F));
+  document.getElementById('draft-indicator').style.display='inline-flex';
+}
+
+function clearDraft(){
+  localStorage.removeItem(LS_DRAFT);
+  F=buildInitialState();
+  currentStep=0;
+  document.getElementById('draft-indicator').style.display='none';
+  renderForm();
+  toast('Borrador eliminado','info');
+}
+
+function schedDraft(){
+  clearTimeout(draftTimer);
+  draftTimer=setTimeout(saveDraft,800);
+}
+
+// ═══════════════════════════════════════════════
+// FORM - RENDER
+// ═══════════════════════════════════════════════
+function renderForm(){
+  const wiz=document.getElementById('form-wizard');
+  wiz.innerHTML=`
+    <div class="wizard-progress">${STEPS.map((s,i)=>`
+      <div class="wizard-step ${i<currentStep?'done':i===currentStep?'current':''}">
+        <span class="step-num">${i<currentStep?'✓':i+1}</span>
+        <span class="step-name">${s}</span>
+      </div>`).join('')}
+    </div>
+    <div class="step-body">
+      ${renderStep(currentStep)}
+    </div>`;
+  // Re-attach event listeners
+  attachStepListeners(currentStep);
+}
+
+function renderStep(s){
+  switch(s){
+    case 0: return renderStep0();
+    case 1: return renderStep1();
+    case 2: return renderStep2();
+    case 3: return renderStep3();
+    case 4: return renderStep4();
+    case 5: return renderStep5();
+    case 6: return renderStep6();
+    case 7: return renderStep7();
+    case 8: return renderStep8();
+    case 9: return renderStep9();
+    case 10: return renderStep10();
+    default: return '';
+  }
+}
+
+function makeSelect(id,options,val='',onchange=''){
+  return `<select id="${id}" onchange="${onchange}">
+    ${options.map(o=>`<option value="${o}" ${o===val?'selected':''}>${o}</option>`).join('')}
+  </select>`;
+}
+function makeInput(id,type,val='',placeholder='',extra=''){
+  return `<input type="${type}" id="${id}" value="${val}" placeholder="${placeholder}" ${extra}>`;
+}
+function makeNav(back=true){
+  const isLast = currentStep===STEPS.length-1;
+  return `<div class="step-nav">
+    ${back?`<button class="btn btn-ghost" onclick="prevStep()">← Anterior</button>`:''}
+    <div class="spacer"></div>
+    ${isLast
+      ?`<button class="btn btn-ok btn-lg" onclick="submitForm()">✅ Enviar Turno</button>`
+      :`<button class="btn btn-primary" onclick="nextStep()">Siguiente →</button>`}
+  </div>`;
+}
+
+// Step 0: Encabezado
+function renderStep0(){
+  const e=F.encabezado;
+  return `
+    <div class="step-title">📅 Datos del Turno</div>
+    <div class="step-desc">Información general del turno a registrar.</div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Fecha <span class="req">*</span></label>
+        <input type="date" id="f-fecha" value="${e.fecha}">
+      </div>
+      <div class="form-row"><label class="field-label">Turno <span class="req">*</span></label>
+        <div class="radio-group">
+          ${['T1','T2','T3'].map(t=>`<div class="radio-item"><input type="radio" name="f-turno" id="f-turno-${t}" value="${t}" ${e.turno===t?'checked':''}><label for="f-turno-${t}">${t}<br><span style="font-size:10px;font-weight:400">${t==='T1'?'Noche':t==='T2'?'Mañana':'Tarde'}</span></label></div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Supervisor <span class="req">*</span></label>
+        ${makeSelect('f-supervisor',DATA.supervisores,e.supervisor,'updateF("encabezado","supervisor",this.value)')}
+      </div>
+      <div class="form-row"><label class="field-label">Duración del turno (horas) <span class="req">*</span></label>
+        <input type="number" id="f-horas" value="${e.horas}" min="2" max="12" step="0.5" placeholder="8">
+        <div class="field-hint">Normal: 8 | Especial: 4, 4.5, 6, 10, 12</div>
+      </div>
+    </div>
+    ${makeNav(false)}`;
+}
+
+// Step 1: Personal
+function renderStep1(){
+  const p=F.personal;
+  return `
+    <div class="step-title">👷 Personal del Turno</div>
+    <div class="step-desc">Asigná el operario para cada puesto de trabajo.</div>
+    
+    <div class="section-divider"><div class="section-icon">⚡</div><h3>Mantenimiento</h3></div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Electricista</label>${makeSelect('f-elec',DATA.personal.electricistas,p.electricista)}</div>
+      <div class="form-row"><label class="field-label">Mecánico</label>${makeSelect('f-mec',DATA.personal.mecanicos,p.mecanico)}</div>
+    </div>
+    <div class="form-row-3">
+      <div class="form-row"><label class="field-label">Auxiliar 1</label>${makeSelect('f-aux1',DATA.personal.auxiliares,p.aux1)}</div>
+      <div class="form-row"><label class="field-label">Auxiliar 2</label>${makeSelect('f-aux2',DATA.personal.auxiliares,p.aux2)}</div>
+      <div class="form-row"><label class="field-label">Auxiliar 3</label>${makeSelect('f-aux3',DATA.personal.auxiliares,p.aux3)}</div>
+    </div>
+
+    <div class="section-divider"><div class="section-icon">🚧</div><h3>Maquinistas de Pala</h3></div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Maquinista Pala Molienda <span class="req">*</span></label>
+        <div class="radio-group">${DATA.personal.maquinistas.map((m,i)=>`<div class="radio-item"><input type="radio" name="f-maqm" id="f-maqm-${i}" value="${m}" ${p.maquinistaMolienda===m?'checked':''}><label for="f-maqm-${i}">${m}</label></div>`).join('')}</div>
+      </div>
+      <div class="form-row"><label class="field-label">Maquinista Pala Silo <span class="req">*</span></label>
+        <div class="radio-group">${DATA.personal.maquinistas.map((m,i)=>`<div class="radio-item"><input type="radio" name="f-maqs" id="f-maqs-${i}" value="${m}" ${p.maquinistaSilo===m?'checked':''}><label for="f-maqs-${i}">${m}</label></div>`).join('')}</div>
+      </div>
+    </div>
+
+    <div class="section-divider"><div class="section-icon">🏭</div><h3>Operarios por Sector</h3></div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Operario Molienda <span class="req">*</span></label>${makeSelect('f-op-mol',DATA.personal.molienda,p.molienda)}</div>
+      <div class="form-row"><label class="field-label">Sacapiedras</label>${makeSelect('f-op-sac',DATA.personal.sacapiedras,p.sacapiedras)}</div>
+      <div class="form-row"><label class="field-label">Operario Producción <span class="req">*</span></label>${makeSelect('f-op-prod',DATA.personal.produccion,p.produccion)}</div>
+      <div class="form-row"><label class="field-label">Operario Carga <span class="req">*</span></label>${makeSelect('f-op-carga',DATA.personal.carga,p.carga)}</div>
+      <div class="form-row"><label class="field-label">Operario Descarga <span class="req">*</span></label>${makeSelect('f-op-desc',DATA.personal.descarga,p.descarga)}</div>
+      <div class="form-row"><label class="field-label">Autoelevadorista</label>${makeSelect('f-op-auto',DATA.personal.autoelevadoristas,p.autoelevador)}</div>
+    </div>
+
+    <div class="section-divider"><div class="section-icon">🚜</div><h3>Autoelevadores en uso</h3></div>
+    <div class="check-group">
+      ${DATA.autoelevadores.map(a=>`<div class="check-item"><input type="checkbox" id="f-ae-${a.replace(/\s/g,'')}" value="${a}" ${F.autoelevadores.includes(a)?'checked':''}><label for="f-ae-${a.replace(/\s/g,'')}">${a}</label></div>`).join('')}
+    </div>
+
+    <div class="section-divider"><div class="section-icon">❌</div><h3>Ausentes del Turno</h3></div>
+    <div class="multi-search" id="ausentes-ms">
+      <input type="text" class="multi-search-input" id="ausentes-search" placeholder="Buscar operario..." oninput="filterMulti('ausentes')">
+      <div class="multi-list" id="ausentes-list">
+        ${DATA.personal.ausentes.map(a=>`<div class="multi-list-item ${F.ausentes.includes(a)?'selected':''}" data-val="${a}" onclick="toggleMulti('ausentes','${a}')">
+          <input type="checkbox" ${F.ausentes.includes(a)?'checked':''} readonly> ${a}
+        </div>`).join('')}
+      </div>
+      <div class="multi-selected-tags" id="ausentes-tags">
+        ${F.ausentes.map(a=>`<span class="tag">${a} <span class="tag-rm" onclick="removeMulti('ausentes','${a}')">✕</span></span>`).join('')}
+      </div>
+    </div>
+    ${makeNav()}`;
+}
+
+// Step 2: Novedades
+function renderStep2(){
+  const n=F.novedades;
+  const sectores=[
+    {k:'general',icon:'📌',label:'Novedades Generales / Mantenimiento'},
+    {k:'molindaSilo',icon:'⚙️',label:'Novedades Molienda & Silo'},
+    {k:'produccion',icon:'🏭',label:'Novedades Producción'},
+    {k:'carga',icon:'📦',label:'Novedades Carga'},
+    {k:'descarga',icon:'📥',label:'Novedades Descarga'},
+    {k:'secaderoHorno',icon:'🔥',label:'Novedades Secadero / Horno'},
+  ];
+  return `
+    <div class="step-title">📝 Novedades del Turno</div>
+    <div class="step-desc">Registrá novedades, problemas, modo de trabajo y observaciones por sector. Si no hay, dejá en blanco.</div>
+    ${sectores.map(s=>`
+      <div class="form-row">
+        <label class="field-label">${s.icon} ${s.label}</label>
+        <textarea id="f-nov-${s.k}" rows="3" placeholder="Describí novedades, mantenimiento, inconvenientes, paradas, forma de trabajo...">${n[s.k]||''}</textarea>
+      </div>`).join('')}
+    ${makeNav()}`;
+}
+
+// Step 3: Molienda
+function renderStep3(){
+  const m=F.molienda;
+  const paladas=parseFloat(m.paladas)||0;
+  const m3b=parseFloat(m.m3Balde)||3;
+  const m3t=(paladas*m3b).toFixed(1);
+  const ton=(paladas*m3b*1.4).toFixed(2);
+  return `
+    <div class="step-title">⚙️ Sector Molienda</div>
+    <div class="step-desc">Datos de producción del sector molienda → silo. El total en toneladas se calcula automáticamente (m³ × 1.4 t/m³).</div>
+    
+    <div class="form-row">
+      <label class="field-label">Pala utilizada <span class="req">*</span></label>
+      <div class="check-group">
+        ${DATA.palas.map(p=>`<div class="radio-item"><input type="radio" name="f-mol-pala" id="f-mp-${p.replace(/\s/g,'')}" value="${p}" ${m.pala===p?'checked':''}><label for="f-mp-${p.replace(/\s/g,'')}">${p}</label></div>`).join('')}
+      </div>
+    </div>
+    
+    <div class="form-row-3">
+      <div class="form-row"><label class="field-label">N° de paladas <span class="req">*</span></label>
+        <input type="number" id="f-mol-pal" value="${m.paladas}" min="0" placeholder="0" oninput="updateCalc()">
+      </div>
+      <div class="form-row"><label class="field-label">m³ por balde</label>
+        <input type="number" id="f-mol-m3b" value="${m.m3Balde}" min="0.5" max="10" step="0.1" placeholder="3.0" oninput="updateCalc()">
+        <div class="field-hint">Por defecto: 3 m³. Varía según pala.</div>
+      </div>
+      <div></div>
+    </div>
+    
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Total m³</label><div class="calc-result" id="f-mol-m3t">${m3t} m³</div></div>
+      <div class="form-row"><label class="field-label">Total toneladas</label><div class="calc-result" id="f-mol-ton" style="color:var(--ok)">${ton} t</div></div>
+    </div>
+    
+    <div class="form-row"><label class="field-label">Observaciones de Molienda</label>
+      <textarea id="f-mol-obs" rows="2" placeholder="Observaciones adicionales...">${m.obs||''}</textarea>
+    </div>
+    ${makeNav()}`;
+}
+
+// Step 4: Silo
+function renderStep4(){
+  const s=F.silo;
+  const paladas=parseFloat(s.paladas)||0;
+  const m3b=parseFloat(s.m3Balde)||3;
+  const m3t=(paladas*m3b).toFixed(1);
+  const ton=(paladas*m3b*1.4).toFixed(2);
+  return `
+    <div class="step-title">🗂️ Sector Silo → Producción</div>
+    <div class="step-desc">Datos del silo. La tierra almacenada alimenta el cajón de producción.</div>
+    
+    <div class="form-row">
+      <label class="field-label">Pala utilizada <span class="req">*</span></label>
+      <div class="check-group">
+        ${DATA.palas.map(p=>`<div class="radio-item"><input type="radio" name="f-sil-pala" id="f-sp-${p.replace(/\s/g,'')}" value="${p}" ${s.pala===p?'checked':''}><label for="f-sp-${p.replace(/\s/g,'')}">${p}</label></div>`).join('')}
+      </div>
+    </div>
+    
+    <div class="form-row-3">
+      <div class="form-row"><label class="field-label">N° de paladas <span class="req">*</span></label>
+        <input type="number" id="f-sil-pal" value="${s.paladas}" min="0" placeholder="0" oninput="updateCalcSilo()">
+      </div>
+      <div class="form-row"><label class="field-label">m³ por balde</label>
+        <input type="number" id="f-sil-m3b" value="${s.m3Balde}" min="0.5" max="10" step="0.1" placeholder="3.0" oninput="updateCalcSilo()">
+      </div>
+      <div class="form-row"><label class="field-label">Tiempo de operación</label>
+        <input type="text" id="f-sil-tiempo" value="${s.tiempo}" placeholder="4:03:32 (h:mm:ss)">
+        <div class="field-hint">Formato: H:MM:SS</div>
+      </div>
+    </div>
+    
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Total m³</label><div class="calc-result" id="f-sil-m3t">${m3t} m³</div></div>
+      <div class="form-row"><label class="field-label">Total toneladas</label><div class="calc-result" id="f-sil-ton" style="color:var(--ok)">${ton} t</div></div>
+    </div>
+    
+    <div class="form-row">
+      <label class="field-label">Cargando en cono</label>
+      <div class="check-group">
+        ${['1','2','3'].map(c=>`<div class="check-item"><input type="checkbox" id="f-sil-cono${c}" value="${c}" ${s.conos&&s.conos.includes(c)?'checked':''}><label for="f-sil-cono${c}">Cono ${c}</label></div>`).join('')}
+      </div>
+    </div>
+    ${makeNav()}`;
+}
+
+// Step 5: Producción
+function renderStep5(){
+  const p=F.produccion;
+  const ladrOpts=DATA.tiposLadrillo;
+  const moldeOpts=['1','2','3'];
+  function ladBlock(n,label){
+    return `
+      <div class="section-divider"><div class="section-icon">🧱</div><h3>${label}</h3></div>
+      <div class="form-row-3">
+        <div class="form-row"><label class="field-label">Tipo de Ladrillo</label>
+          <select id="f-prod-tipo${n}">
+            <option value="">— seleccionar —</option>
+            ${ladrOpts.map(l=>`<option ${p['tipo'+n]===l?'selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row"><label class="field-label">N° de Molde</label>
+          <div class="radio-group">${moldeOpts.map(m=>`<div class="radio-item"><input type="radio" name="f-prod-molde${n}" id="f-pm${n}m${m}" value="${m}" ${p['molde'+n]===m?'checked':''}><label for="f-pm${n}m${m}">${m}</label></div>`).join('')}</div>
+        </div>
+        <div class="form-row"><label class="field-label">Zorras producidas</label>
+          <input type="number" id="f-prod-zorras${n}" value="${p['zorras'+n]||''}" min="0" placeholder="0">
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="step-title">🏭 Sector Producción</div>
+    <div class="step-desc">Registrá los ladrillos producidos. Podés agregar hasta 4 tipos distintos por turno.</div>
+    
+    ${ladBlock(1,'Ladrillo Principal')}
+    
+    <div class="form-row-2" style="margin-top:8px;">
+      <div class="form-row"><label class="field-label">Tiempo Extrusora</label>
+        <input type="text" id="f-prod-textrus" value="${p.tiempoExtrusora||''}" placeholder="4:03:32">
+        <div class="field-hint">H:MM:SS de funcionamiento</div>
+      </div>
+      <div class="form-row"><label class="field-label">Tiempo de Descarte</label>
+        <input type="text" id="f-prod-tdesc" value="${p.tiempoDescarte||''}" placeholder="0:30:00">
+      </div>
+    </div>
+    <div class="form-row-3">
+      <div class="form-row"><label class="field-label">Lavado de Molde</label>
+        <div class="radio-group">
+          ${['Sí','No'].map(v=>`<div class="radio-item"><input type="radio" name="f-lavado" id="f-lav-${v}" value="${v}" ${p.lavado===v||(v==='No'&&!p.lavado)?'checked':''}><label for="f-lav-${v}">${v}</label></div>`).join('')}
+        </div>
+      </div>
+      <div class="form-row"><label class="field-label">Puntada</label>
+        <div class="radio-group">
+          ${['Sí','No'].map(v=>`<div class="radio-item"><input type="radio" name="f-puntada" id="f-pun-${v}" value="${v}" ${p.puntada===v||(v==='No'&&!p.puntada)?'checked':''}><label for="f-pun-${v}">${v}</label></div>`).join('')}
+        </div>
+      </div>
+      <div class="form-row"><label class="field-label">Módulo</label>
+        <div class="radio-group">
+          ${['Sí','No'].map(v=>`<div class="radio-item"><input type="radio" name="f-modulo" id="f-mod-${v}" value="${v}" ${p.modulo===v||(v==='No'&&!p.modulo)?'checked':''}><label for="f-mod-${v}">${v}</label></div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div id="prod-tipo2-section" class="${p.tieneTipo2?'cond-block show':'cond-block'}">
+      ${ladBlock(2,'Ladrillo N°2')}
+    </div>
+    <button class="add-more-btn" id="btn-add-tipo2" onclick="toggleCond('prod-tipo2-section','btn-add-tipo2','Agregar ladrillo N°2','Ocultar ladrillo N°2',true)" style="margin-top:8px">
+      ${p.tieneTipo2?'— Ocultar ladrillo N°2':'+ Agregar ladrillo N°2'}
+    </button>
+
+    <div id="prod-tipo3-section" class="${p.tieneTipo3?'cond-block show':'cond-block'}" style="margin-top:0">
+      ${ladBlock(3,'Ladrillo N°3')}
+    </div>
+    <button class="add-more-btn" id="btn-add-tipo3" onclick="toggleCond('prod-tipo3-section','btn-add-tipo3','Agregar ladrillo N°3','Ocultar ladrillo N°3',false)" style="margin-top:8px">
+      ${p.tieneTipo3?'— Ocultar ladrillo N°3':'+ Agregar ladrillo N°3'}
+    </button>
+
+    <div id="prod-tipo4-section" class="${p.tieneTipo4?'cond-block show':'cond-block'}" style="margin-top:0">
+      ${ladBlock(4,'Ladrillo N°4')}
+    </div>
+    <button class="add-more-btn" id="btn-add-tipo4" onclick="toggleCond('prod-tipo4-section','btn-add-tipo4','Agregar ladrillo N°4','Ocultar ladrillo N°4',false)" style="margin-top:8px">
+      ${p.tieneTipo4?'— Ocultar ladrillo N°4':'+ Agregar ladrillo N°4'}
+    </button>
+    
+    ${makeNav()}`;
+}
+
+// Step 6: Carga
+function renderStep6(){
+  const c=F.carga;
+  const opts=DATA.tiposLadrilloCarga;
+  return `
+    <div class="step-title">📦 Sector Carga</div>
+    <div class="step-desc">Registrá la carga de vagonetas para el horno.</div>
+    
+    <div class="section-divider"><div class="section-icon">1</div><h3>Ladrillo Principal</h3></div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Tipo de Ladrillo <span class="req">*</span></label>
+        <select id="f-carga-tipo1"><option value="">— seleccionar —</option>${opts.map(l=>`<option ${c.tipo1===l?'selected':''}>${l}</option>`).join('')}</select>
+      </div>
+      <div class="form-row"><label class="field-label">N° de Vagonetas</label>
+        <input type="number" id="f-carga-vag1" value="${c.vagonetas1||''}" min="0" placeholder="0">
+      </div>
+    </div>
+    
+    <div id="carga-tipo2-section" class="${c.tieneTipo2?'cond-block show':'cond-block'}">
+      <div class="section-divider"><div class="section-icon">2</div><h3>Ladrillo N°2</h3></div>
+      <div class="form-row-2">
+        <div class="form-row"><label class="field-label">Tipo de Ladrillo</label>
+          <select id="f-carga-tipo2"><option value="">— seleccionar —</option>${opts.map(l=>`<option ${c.tipo2===l?'selected':''}>${l}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label class="field-label">N° de Vagonetas</label>
+          <input type="number" id="f-carga-vag2" value="${c.vagonetas2||''}" min="0" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <button class="add-more-btn" id="btn-add-carga2" onclick="toggleCond('carga-tipo2-section','btn-add-carga2','+ Agregar otro tipo de ladrillo','— Ocultar',false)">
+      ${c.tieneTipo2?'— Ocultar':'+ Agregar otro tipo de ladrillo'}
+    </button>
+    ${makeNav()}`;
+}
+
+// Step 7: Descarga
+function renderStep7(){
+  const d=F.descarga;
+  const opts=DATA.tiposLadrilloCarga;
+  function descBlock(n,label){
+    return `
+      <div class="section-divider"><div class="section-icon">${n}</div><h3>${label}</h3></div>
+      <div class="form-row-3">
+        <div class="form-row"><label class="field-label">Tipo de Ladrillo</label>
+          <select id="f-desc-tipo${n}"><option value="">— seleccionar —</option>${opts.map(l=>`<option ${d['tipo'+n]===l?'selected':''}>${l}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label class="field-label">N° Pallets</label>
+          <input type="number" id="f-desc-pal${n}" value="${d['pallets'+n]||''}" min="0" placeholder="0">
+        </div>
+        <div class="form-row"><label class="field-label">⚠️ Pallets Comercial (2da)</label>
+          <input type="number" id="f-desc-com${n}" value="${d['comercial'+n]||''}" min="0" placeholder="0">
+          <div class="field-hint">Del total, ¿cuántos son calidad comercial?</div>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="step-title">📥 Sector Descarga</div>
+    <div class="step-desc">Registrá los pallets descargados del horno. Separar por tipo de ladrillo si corresponde.</div>
+    
+    ${descBlock(1,'Ladrillo Principal')}
+    
+    <div id="desc-tipo2-section" class="${d.tieneTipo2?'cond-block show':'cond-block'}">
+      ${descBlock(2,'Ladrillo N°2')}
+    </div>
+    <button class="add-more-btn" id="btn-add-desc2" onclick="toggleCond('desc-tipo2-section','btn-add-desc2','+ Agregar tipo N°2','— Ocultar',false)">
+      ${d.tieneTipo2?'— Ocultar':'+ Agregar tipo N°2'}
+    </button>
+    
+    <div id="desc-tipo3-section" class="${d.tieneTipo3?'cond-block show':'cond-block'}">
+      ${descBlock(3,'Ladrillo N°3')}
+    </div>
+    <button class="add-more-btn" id="btn-add-desc3" onclick="toggleCond('desc-tipo3-section','btn-add-desc3','+ Agregar tipo N°3','— Ocultar',false)">
+      ${d.tieneTipo3?'— Ocultar':'+ Agregar tipo N°3'}
+    </button>
+    ${makeNav()}`;
+}
+
+// Step 8: Horno Salida
+function renderStep8(){
+  const h=F.hornoSalida;
+  const opts=DATA.tiposLadrilloCarga;
+  return `
+    <div class="step-title">🔥 Salida de Horno</div>
+    <div class="step-desc">Ingresá la cantidad de vagonetas que salen del horno por tipo de ladrillo.</div>
+    
+    <div class="section-divider"><div class="section-icon">1</div><h3>Tipo Principal</h3></div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="field-label">Tipo de Ladrillo</label>
+        <select id="f-horno-tipo1"><option value="">— seleccionar —</option>${opts.map(l=>`<option ${h.tipo1===l?'selected':''}>${l}</option>`).join('')}</select>
+      </div>
+      <div class="form-row"><label class="field-label">N° de Vagonetas</label>
+        <input type="number" id="f-horno-vag1" value="${h.vagones1||''}" min="0" placeholder="0">
+      </div>
+    </div>
+    
+    <div id="horno-tipo2-section" class="${h.tieneTipo2?'cond-block show':'cond-block'}">
+      <div class="section-divider"><div class="section-icon">2</div><h3>Tipo N°2</h3></div>
+      <div class="form-row-2">
+        <div class="form-row"><label class="field-label">Tipo de Ladrillo</label>
+          <select id="f-horno-tipo2"><option value="">— seleccionar —</option>${opts.map(l=>`<option ${h.tipo2===l?'selected':''}>${l}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label class="field-label">N° de Vagonetas</label>
+          <input type="number" id="f-horno-vag2" value="${h.vagones2||''}" min="0" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <button class="add-more-btn" id="btn-add-horno2" onclick="toggleCond('horno-tipo2-section','btn-add-horno2','+ Agregar tipo N°2','— Ocultar',false)">
+      ${h.tieneTipo2?'— Ocultar':'+ Agregar tipo N°2'}
+    </button>
+    
+    <div id="horno-tipo3-section" class="${h.tieneTipo3?'cond-block show':'cond-block'}">
+      <div class="section-divider"><div class="section-icon">3</div><h3>Tipo N°3</h3></div>
+      <div class="form-row-2">
+        <div class="form-row"><label class="field-label">Tipo de Ladrillo</label>
+          <select id="f-horno-tipo3"><option value="">— seleccionar —</option>${opts.map(l=>`<option ${h.tipo3===l?'selected':''}>${l}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label class="field-label">N° de Vagonetas</label>
+          <input type="number" id="f-horno-vag3" value="${h.vagones3||''}" min="0" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <button class="add-more-btn" id="btn-add-horno3" onclick="toggleCond('horno-tipo3-section','btn-add-horno3','+ Agregar tipo N°3','— Ocultar',false)">
+      ${h.tieneTipo3?'— Ocultar':'+ Agregar tipo N°3'}
+    </button>
+    ${makeNav()}`;
+}
+
+// Step 9: Seguridad
+function renderStep9(){
+  const seg=F.seguridad;
+  return `
+    <div class="step-title">🧯 Higiene y Seguridad</div>
+    <div class="step-desc">Registrá cualquier situación insegura identificada durante el turno (acto o condición insegura).</div>
+    
+    <div class="alert alert-info">ℹ️ Una contingencia puede ser un <strong>acto inseguro</strong> (omite normas de seguridad) o una <strong>condición insegura</strong> (situación física de riesgo).</div>
+    
+    <div class="form-row">
+      <label class="field-label">¿Se identificó situación insegura? <span class="req">*</span></label>
+      <div class="radio-group">
+        ${['No','Sí'].map(v=>`<div class="radio-item"><input type="radio" name="f-seg-sit" id="f-seg-${v}" value="${v}" ${(seg.situacion===v||(v==='No'&&!seg.situacion))?'checked':''} onchange="toggleSegDesc(this.value)"><label for="f-seg-${v}">${v==='Sí'?'⚠️ Sí':'✅ No'}</label></div>`).join('')}
+      </div>
+    </div>
+    
+    <div id="seg-desc-section" class="${seg.situacion==='Sí'?'cond-block show':'cond-block'}">
+      <div class="form-row">
+        <label class="field-label">Descripción de la situación insegura <span class="req">*</span></label>
+        <textarea id="f-seg-desc" rows="4" placeholder="Describí claramente qué ocurrió, dónde, cómo y qué medidas se tomaron...">${seg.descripcion||''}</textarea>
+      </div>
+      <div class="alert alert-warn">⚠️ Consultá los procedimientos de seguridad según corresponda: bloqueo y etiquetado, trabajo en altura, trabajo en caliente, etc.</div>
+    </div>
+    ${makeNav()}`;
+}
+
+// Step 10: Resumen
+function renderStep10(){
+  const e=F.encabezado;
+  const p=F.personal;
+  const m=F.molienda;
+  const s=F.silo;
+  const pr=F.produccion;
+  const c=F.carga;
+  const d=F.descarga;
+  const palMol=(parseFloat(m.paladas)||0)*(parseFloat(m.m3Balde)||3);
+  const palSil=(parseFloat(s.paladas)||0)*(parseFloat(s.m3Balde)||3);
+  const totalTon=((palMol+palSil)*1.4/2).toFixed(2); // avg
+  const molTon=(palMol*1.4).toFixed(2);
+  return `
+    <div class="step-title">✅ Resumen del Turno</div>
+    <div class="step-desc">Revisá que toda la información sea correcta antes de enviar. Una vez enviado no podrás modificar.</div>
+    
+    <div class="alert alert-ok">✅ Todo listo. Al enviar, los datos se guardarán en Google Sheets.</div>
+    
+    <div class="review-section">
+      <h4>📅 Encabezado</h4>
+      <div class="review-row"><span class="rk">Fecha</span><span class="rv mono">${e.fecha}</span></div>
+      <div class="review-row"><span class="rk">Supervisor</span><span class="rv">${e.supervisor||'—'}</span></div>
+      <div class="review-row"><span class="rk">Turno</span><span class="rv"><span class="turno-pill turno-${e.turno}">${e.turno}</span> ${SHIFT_LABELS[e.turno]}</span></div>
+      <div class="review-row"><span class="rk">Horas</span><span class="rv mono">${e.horas} hs</span></div>
+    </div>
+    
+    <div class="review-section">
+      <h4>👷 Personal</h4>
+      <div class="review-row"><span class="rk">Electricista</span><span class="rv">${p.electricista||'—'}</span></div>
+      <div class="review-row"><span class="rk">Mecánico</span><span class="rv">${p.mecanico||'—'}</span></div>
+      <div class="review-row"><span class="rk">Op. Molienda</span><span class="rv">${p.molienda||'—'}</span></div>
+      <div class="review-row"><span class="rk">Op. Producción</span><span class="rv">${p.produccion||'—'}</span></div>
+      <div class="review-row"><span class="rk">Op. Carga</span><span class="rv">${p.carga||'—'}</span></div>
+      <div class="review-row"><span class="rk">Op. Descarga</span><span class="rv">${p.descarga||'—'}</span></div>
+      ${F.ausentes.length?`<div class="review-row"><span class="rk">Ausentes</span><span class="rv" style="font-size:12px">${F.ausentes.join(', ')}</span></div>`:''}
+    </div>
+    
+    <div class="review-section">
+      <h4>⚙️ Molienda → Silo</h4>
+      <div class="review-row"><span class="rk">Pala</span><span class="rv">${m.pala||'—'}</span></div>
+      <div class="review-row"><span class="rk">Paladas</span><span class="rv mono">${m.paladas||0}</span></div>
+      <div class="review-row"><span class="rk">Total m³</span><span class="rv mono">${palMol.toFixed(1)} m³</span></div>
+      <div class="review-row"><span class="rk">Toneladas</span><span class="rv mono" style="color:var(--ok)">${molTon} t</span></div>
+    </div>
+    
+    <div class="review-section">
+      <h4>🏭 Producción</h4>
+      ${pr.tipo1?`<div class="review-row"><span class="rk">Ladrillo 1</span><span class="rv">${pr.tipo1} · Molde ${pr.molde1} · ${pr.zorras1||0} zorras</span></div>`:'<div class="review-row"><span class="rk">—</span><span class="rv">Sin datos</span></div>'}
+      ${pr.tieneTipo2&&pr.tipo2?`<div class="review-row"><span class="rk">Ladrillo 2</span><span class="rv">${pr.tipo2} · Molde ${pr.molde2} · ${pr.zorras2||0} zorras</span></div>`:''}
+    </div>
+    
+    <div class="review-section">
+      <h4>📦 Carga / 📥 Descarga</h4>
+      ${c.tipo1?`<div class="review-row"><span class="rk">Carga</span><span class="rv">${c.tipo1} · ${c.vagonetas1||0} vagonetas</span></div>`:'<div class="review-row"><span class="rk">Carga</span><span class="rv">—</span></div>'}
+      ${d.tipo1?`<div class="review-row"><span class="rk">Descarga</span><span class="rv">${d.tipo1} · ${d.pallets1||0} pallets (${d.comercial1||0} comercial)</span></div>`:'<div class="review-row"><span class="rk">Descarga</span><span class="rv">—</span></div>'}
+    </div>
+    
+    <div class="review-section">
+      <h4>🧯 Seguridad</h4>
+      <div class="review-row"><span class="rk">Situación insegura</span><span class="rv" style="color:${F.seguridad.situacion==='Sí'?'var(--warn)':'var(--ok)'}">${F.seguridad.situacion||'No'}</span></div>
+      ${F.seguridad.situacion==='Sí'?`<div class="review-row"><span class="rk">Descripción</span><span class="rv" style="font-size:12px">${F.seguridad.descripcion||'—'}</span></div>`:''}
+    </div>
+    
+    ${makeNav()}`;
+}
+
+// ═══════════════════════════════════════════════
+// FORM NAVIGATION
+// ═══════════════════════════════════════════════
+function collectStep(s){
+  switch(s){
+    case 0:
+      F.encabezado.fecha = document.getElementById('f-fecha')?.value||F.encabezado.fecha;
+      const turnoR = document.querySelector('input[name="f-turno"]:checked');
+      if(turnoR) F.encabezado.turno = turnoR.value;
+      F.encabezado.supervisor = document.getElementById('f-supervisor')?.value||'';
+      F.encabezado.horas = document.getElementById('f-horas')?.value||'8';
+      break;
+    case 1:
+      F.personal.electricista = document.getElementById('f-elec')?.value||'-';
+      F.personal.mecanico = document.getElementById('f-mec')?.value||'-';
+      F.personal.aux1 = document.getElementById('f-aux1')?.value||'-';
+      F.personal.aux2 = document.getElementById('f-aux2')?.value||'-';
+      F.personal.aux3 = document.getElementById('f-aux3')?.value||'-';
+      const maqm=document.querySelector('input[name="f-maqm"]:checked');
+      if(maqm) F.personal.maquinistaMolienda=maqm.value;
+      const maqs=document.querySelector('input[name="f-maqs"]:checked');
+      if(maqs) F.personal.maquinistaSilo=maqs.value;
+      F.personal.molienda = document.getElementById('f-op-mol')?.value||'-';
+      F.personal.sacapiedras = document.getElementById('f-op-sac')?.value||'-';
+      F.personal.produccion = document.getElementById('f-op-prod')?.value||'-';
+      F.personal.carga = document.getElementById('f-op-carga')?.value||'-';
+      F.personal.descarga = document.getElementById('f-op-desc')?.value||'-';
+      F.personal.autoelevador = document.getElementById('f-op-auto')?.value||'-';
+      // Autoelevadores
+      F.autoelevadores = DATA.autoelevadores.filter(a=>{
+        const el=document.getElementById('f-ae-'+a.replace(/\s/g,''));
+        return el&&el.checked;
+      });
+      break;
+    case 2:
+      ['general','molindaSilo','produccion','carga','descarga','secaderoHorno'].forEach(k=>{
+        const el=document.getElementById('f-nov-'+k);
+        if(el) F.novedades[k]=el.value;
+      });
+      break;
+    case 3:
+      F.molienda.paladas = document.getElementById('f-mol-pal')?.value||'';
+      F.molienda.m3Balde = document.getElementById('f-mol-m3b')?.value||'3';
+      F.molienda.obs = document.getElementById('f-mol-obs')?.value||'';
+      const molPala=document.querySelector('input[name="f-mol-pala"]:checked');
+      if(molPala) F.molienda.pala=molPala.value;
+      break;
+    case 4:
+      F.silo.paladas = document.getElementById('f-sil-pal')?.value||'';
+      F.silo.m3Balde = document.getElementById('f-sil-m3b')?.value||'3';
+      F.silo.tiempo = document.getElementById('f-sil-tiempo')?.value||'';
+      const silPala=document.querySelector('input[name="f-sil-pala"]:checked');
+      if(silPala) F.silo.pala=silPala.value;
+      F.silo.conos=['1','2','3'].filter(c=>document.getElementById('f-sil-cono'+c)?.checked);
+      break;
+    case 5:
+      [1,2,3,4].forEach(n=>{
+        F.produccion['tipo'+n]=document.getElementById('f-prod-tipo'+n)?.value||'';
+        const mr=document.querySelector(`input[name="f-prod-molde${n}"]:checked`);
+        if(mr) F.produccion['molde'+n]=mr.value;
+        F.produccion['zorras'+n]=document.getElementById('f-prod-zorras'+n)?.value||'';
+      });
+      F.produccion.tiempoExtrusora=document.getElementById('f-prod-textrus')?.value||'';
+      F.produccion.tiempoDescarte=document.getElementById('f-prod-tdesc')?.value||'';
+      const lavR=document.querySelector('input[name="f-lavado"]:checked');
+      if(lavR) F.produccion.lavado=lavR.value;
+      const punR=document.querySelector('input[name="f-puntada"]:checked');
+      if(punR) F.produccion.puntada=punR.value;
+      const modR=document.querySelector('input[name="f-modulo"]:checked');
+      if(modR) F.produccion.modulo=modR.value;
+      F.produccion.tieneTipo2=document.getElementById('prod-tipo2-section')?.classList.contains('show')||false;
+      F.produccion.tieneTipo3=document.getElementById('prod-tipo3-section')?.classList.contains('show')||false;
+      F.produccion.tieneTipo4=document.getElementById('prod-tipo4-section')?.classList.contains('show')||false;
+      break;
+    case 6:
+      F.carga.tipo1=document.getElementById('f-carga-tipo1')?.value||'';
+      F.carga.vagonetas1=document.getElementById('f-carga-vag1')?.value||'';
+      F.carga.tipo2=document.getElementById('f-carga-tipo2')?.value||'';
+      F.carga.vagonetas2=document.getElementById('f-carga-vag2')?.value||'';
+      F.carga.tieneTipo2=document.getElementById('carga-tipo2-section')?.classList.contains('show')||false;
+      break;
+    case 7:
+      [1,2,3].forEach(n=>{
+        F.descarga['tipo'+n]=document.getElementById('f-desc-tipo'+n)?.value||'';
+        F.descarga['pallets'+n]=document.getElementById('f-desc-pal'+n)?.value||'';
+        F.descarga['comercial'+n]=document.getElementById('f-desc-com'+n)?.value||'';
+      });
+      F.descarga.tieneTipo2=document.getElementById('desc-tipo2-section')?.classList.contains('show')||false;
+      F.descarga.tieneTipo3=document.getElementById('desc-tipo3-section')?.classList.contains('show')||false;
+      break;
+    case 8:
+      [1,2,3].forEach(n=>{
+        F.hornoSalida['tipo'+n]=document.getElementById('f-horno-tipo'+n)?.value||'';
+        F.hornoSalida['vagones'+n]=document.getElementById('f-horno-vag'+n)?.value||'';
+      });
+      F.hornoSalida.tieneTipo2=document.getElementById('horno-tipo2-section')?.classList.contains('show')||false;
+      F.hornoSalida.tieneTipo3=document.getElementById('horno-tipo3-section')?.classList.contains('show')||false;
+      break;
+    case 9:
+      const segR=document.querySelector('input[name="f-seg-sit"]:checked');
+      if(segR) F.seguridad.situacion=segR.value;
+      F.seguridad.descripcion=document.getElementById('f-seg-desc')?.value||'';
+      break;
+  }
+}
+
+function validateStep(s){
+  if(s===0){
+    if(!F.encabezado.supervisor){ toast('Seleccioná el supervisor','err'); return false; }
+    if(!F.encabezado.fecha){ toast('Ingresá la fecha','err'); return false; }
+  }
+  return true;
+}
+
+function nextStep(){
+  collectStep(currentStep);
+  if(!validateStep(currentStep)) return;
+  saveDraft();
+  currentStep = Math.min(currentStep+1, STEPS.length-1);
+  renderForm();
+  document.getElementById('panel-form').scrollTo(0,0);
+}
+
+function prevStep(){
+  collectStep(currentStep);
+  saveDraft();
+  currentStep = Math.max(currentStep-1, 0);
+  renderForm();
+  document.getElementById('panel-form').scrollTo(0,0);
+}
+
+async function submitForm(){
+  collectStep(currentStep);
+  if(!F.encabezado.supervisor){ toast('Falta el supervisor','err'); return; }
+  setLoading(true);
+  try {
+    await API.submitTurno(F);
+    localStorage.removeItem(LS_DRAFT);
+    F = buildInitialState();
+    currentStep = 0;
+    document.getElementById('draft-indicator').style.display='none';
+    toast('✅ Turno registrado correctamente!','ok');
+    showPanel('history');
+  } catch(e){
+    toast('Error al enviar: '+e.message,'err');
+  }
+  setLoading(false);
+}
+
+// ═══════════════════════════════════════════════
+// FORM HELPERS
+// ═══════════════════════════════════════════════
+function attachStepListeners(s){
+  // Auto-save on change
+  document.querySelectorAll('.step-body input,.step-body select,.step-body textarea').forEach(el=>{
+    el.addEventListener('change', schedDraft);
+  });
+}
+
+function updateCalc(){
+  const pal=parseFloat(document.getElementById('f-mol-pal')?.value)||0;
+  const m3b=parseFloat(document.getElementById('f-mol-m3b')?.value)||3;
+  document.getElementById('f-mol-m3t').textContent=(pal*m3b).toFixed(1)+' m³';
+  document.getElementById('f-mol-ton').textContent=(pal*m3b*1.4).toFixed(2)+' t';
+}
+
+function updateCalcSilo(){
+  const pal=parseFloat(document.getElementById('f-sil-pal')?.value)||0;
+  const m3b=parseFloat(document.getElementById('f-sil-m3b')?.value)||3;
+  document.getElementById('f-sil-m3t').textContent=(pal*m3b).toFixed(1)+' m³';
+  document.getElementById('f-sil-ton').textContent=(pal*m3b*1.4).toFixed(2)+' t';
+}
+
+function toggleCond(sectionId, btnId, textAdd, textRem){
+  const sec=document.getElementById(sectionId);
+  const btn=document.getElementById(btnId);
+  if(!sec||!btn) return;
+  const showing=sec.classList.toggle('show');
+  btn.textContent = showing ? textRem : textAdd;
+  schedDraft();
+}
+
+function toggleSegDesc(val){
+  const sec=document.getElementById('seg-desc-section');
+  if(sec) sec.classList.toggle('show', val==='Sí');
+}
+
+// Multi-select
+function filterMulti(id){
+  const q=document.getElementById(id+'-search')?.value.toLowerCase()||'';
+  document.querySelectorAll(`#${id}-list .multi-list-item`).forEach(el=>{
+    el.style.display=el.dataset.val.toLowerCase().includes(q)?'':'none';
+  });
+}
+
+function toggleMulti(id, val){
+  if(F.ausentes.includes(val)){
+    F.ausentes=F.ausentes.filter(v=>v!==val);
+  } else {
+    F.ausentes.push(val);
+  }
+  // Update checkboxes in list
+  document.querySelectorAll(`#${id}-list .multi-list-item`).forEach(el=>{
+    if(el.dataset.val===val){
+      el.classList.toggle('selected',F.ausentes.includes(val));
+      el.querySelector('input').checked=F.ausentes.includes(val);
+    }
+  });
+  // Update tags
+  const tags=document.getElementById(id+'-tags');
+  if(tags) tags.innerHTML=F.ausentes.map(a=>`<span class="tag">${a} <span class="tag-rm" onclick="removeMulti('${id}','${a}')">✕</span></span>`).join('');
+  schedDraft();
+}
+
+function removeMulti(id, val){
+  F.ausentes=F.ausentes.filter(v=>v!==val);
+  toggleMulti(id, val); // reuse to update UI - but first add it back then remove
+  // Actually just re-render
+  const tags=document.getElementById(id+'-tags');
+  if(tags) tags.innerHTML=F.ausentes.map(a=>`<span class="tag">${a} <span class="tag-rm" onclick="removeMulti('${id}','${a}')">✕</span></span>`).join('');
+  document.querySelectorAll(`#${id}-list .multi-list-item`).forEach(el=>{
+    el.classList.toggle('selected',F.ausentes.includes(el.dataset.val));
+    el.querySelector('input').checked=F.ausentes.includes(el.dataset.val);
+  });
+  schedDraft();
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function init(){
+  // Check session
+  const session = Session.get();
+  if(session){
+    enterApp();
+    return;
+  }
+  // Check setup
+  if(!Config.getUrl()){
+    document.getElementById('login-setup-alert').style.display='flex';
+  }
+  showScreen('screen-login');
+  setInterval(updateShiftBadge, 60000);
+}
+
+init();
+</script>
+</body>
+</html>
